@@ -1,71 +1,82 @@
-import os
-import speech_recognition as sr
-from gtts import gTTS
-import playsound  # Hoặc dùng thư viện âm thanh khác
-# Giả sử sử dụng thư viện Google GenAI SDK mới nhất
-from google import genai
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot Giọng Nói</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .chat-container { width: 100%; max-width: 400px; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 85vh; }
+        .chat-box { flex: 1; padding: 15px; overflow-y: auto; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px; }
+        .message { padding: 10px; border-radius: 5px; max-width: 80%; word-break: break-word; white-space: pre-wrap; position: relative; }
+        .user-message { background: #007bff; color: white; align-self: flex-end; }
+        .ai-message { background: #e9ecef; color: black; align-self: flex-start; }
+        .chat-input { display: flex; padding: 10px; gap: 5px; align-items: center; }
+        .chat-input input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; outline: none; }
+        .chat-input button { padding: 10px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .chat-input button#micBtn { background: #6c757d; }
+        .chat-input button#micBtn.recording { background: #dc3545; animation: pulse 1.5s infinite; }
+        .speak-btn { background: none; border: none; cursor: pointer; font-size: 16px; margin-top: 5px; display: inline-block; padding: 2px 5px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
 
-# Khởi tạo client AI (đảm bảo bạn đã thiết lập biến môi trường GEMINI_API_KEY)
-client = genai.Client()
+<div class="chat-container">
+    <div class="chat-box" id="chatBox">
+        <div class="message ai-message">Xin chào! Bạn có thể gõ phím hoặc bấm nút Micro để nói chuyện với tôi nhé.</div>
+    </div>
+    <div class="chat-input">
+        <input type="text" id="userInput" placeholder="Nhập hoặc nói tin nhắn..." onkeydown="if(event.key === 'Enter') sendMessage()">
+        <button id="micBtn" onclick="toggleMic()" title="Nói chuyện">🎤</button>
+        <button onclick="sendMessage()">Gửi</button>
+    </div>
+</div>
 
+<script>
+    // Thay đoạn YOUR_API_KEY_HERE bằng API Key thật của bạn
+    const API_KEY = "YOUR_API_KEY_HERE"; 
 
-def speak(text):
-  """Chuyển văn bản thành giọng nói và phát ra loa"""
-  print(f"🤖 AI: {text}")
-  tts = gTTS(text=text, lang="vi", slow=False)
-  audio_file = "response.mp3"
-  tts.save(audio_file)
-  playsound.playsound(audio_file)
-  os.remove(audio_file)
+    let recognition = null;
+    let isRecording = false;
 
+    // Khởi tạo nhận diện giọng nói (Speech-to-Text)
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'vi-VN'; // Đặt ngôn ngữ tiếng Việt
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
-def listen_microphone():
-  """Thu âm từ micro của người dùng và chuyển thành văn bản"""
-  r = sr.Recognizer()
-  with sr.Microphone() as source:
-    print("🎙️ Đang lắng nghe... Hãy nói gì đó:")
-    r.adjust_for_ambient_noise(source)
-    audio = r.listen(source)
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('userInput').value = transcript;
+            stopMicStyle();
+            sendMessage(); // Tự động gửi sau khi nói xong
+        };
 
-  try:
-    # Sử dụng nhận diện tiếng Việt
-    text = r.recognize_google(audio, language="vi-VN")
-    print(f"👤 Bạn: {text}")
-    return text
-  except sr.UnknownValueError:
-    print("⚠️ Không thể nhận dạng được giọng nói.")
-    return None
-  except sr.RequestError as e:
-    print(f"⚠️ Lỗi kết nối dịch vụ nhận dạng giọng nói: {e}")
-    return None
+        recognition.onerror = function(event) {
+            console.error(event.error);
+            stopMicStyle();
+        };
 
+        recognition.onend = function() {
+            stopMicStyle();
+        };
+    }
 
-def main():
-  # Chức năng chào hỏi
-  speak("Xin chào! Tôi là trợ lý ảo AI của bạn. Tôi có thể giúp gì cho bạn?")
+    function toggleMic() {
+        if (!recognition) {
+            alert("Trình duyệt của bạn không hỗ trợ tính năng thu âm giọng nói.");
+            return;
+        }
+        if (isRecording) {
+            recognition.stop();
+        } else {
+            recognition.start();
+            startMicStyle();
+        }
+    }
 
-  while True:
-    # Tiếp nhận thông tin từ người dùng qua Mic
-    user_input = listen_microphone()
-
-    if user_input:
-      if "thoát" in user_input.lower() or "tạm biệt" in user_input.lower():
-        speak("Tạm biệt bạn! Hẹn gặp lại.")
-        break
-
-      # Gửi thông tin đến mô hình AI xử lý
-      try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=user_input,
-        )
-        ai_reply = response.text
-        # Phát giọng đọc AI
-        speak(ai_reply)
-      except Exception as e:
-        speak("Xin lỗi, tôi đang gặp sự cố khi xử lý yêu cầu.")
-        print(f"Lỗi: {e}")
-
-
-if __name__ == "__main__":
-  main()
+    function startMicStyle() {
+        isRecording = true
